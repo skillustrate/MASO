@@ -1,0 +1,20 @@
+{
+  "version": "v1.1.0",
+  "status": "RELEASED",
+  "images": {
+    "maso-skill-worker": {
+      "tag": "v1.1.0",
+      "podman_digest": "3e2c44f3c99bb594349b8469083278deace487b6b822fbd79c0d9e581b1a822c",
+      "docker_digest": "sha256:f26b55d3fffa8af6782ca70e7509aa863eabf328a09fbb7518ae00559e8154eb",
+      "base_image": "python:3.13-slim-bookworm@sha256:2325bb286ec344af3e5898cc224b5844e2707ac6e26b1632516fd3edc84a5e26",
+      "signature": "fca5fa34266a4d6598903a47ef87c9107c135e6669b45de29ea4cbfa9b6eca0c"
+    },
+    "maso-egress-proxy": {
+      "tag": "v1.1.0",
+      "podman_digest": "8821948d91df6cba14af6438ac4472ad7255348a62c273ca1b56037420a3e389",
+      "docker_digest": "sha256:3ca8f0e7d2a8754f3c6dfc0bfb19b1abea29b0a72225be05641134b249829b1d",
+      "base_image": "python:3.13-slim-bookworm@sha256:2325bb286ec344af3e5898cc224b5844e2707ac6e26b1632516fd3edc84a5e26",
+      "signature": "329644ad1edd1c9cb7e865583fc3b7110d76315e64ed92d3cba54a8f8174de82"
+    }
+  }
+}
