@@ -1,0 +1,26 @@
+# Hardened Minimal Egress Proxy Container (MASO v1.1.0)
+# Strictly non-root (UID 10002), read-only compatible, zero host secrets, no dependencies.
+FROM python:3.13-slim-bookworm@sha256:2325bb286ec344af3e5898cc224b5844e2707ac6e26b1632516fd3edc84a5e26
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH="/usr/local/bin:$PATH"
+
+RUN groupadd -g 10002 masoproxy && \
+    useradd -u 10002 -g 10002 -d /nonexistent -s /usr/sbin/nologin masoproxy
+
+RUN mkdir -p /app/masa/sandbox && \
+    chown -R 10002:10002 /app
+
+COPY masa/__init__.py /app/masa/
+COPY masa/sandbox/__init__.py /app/masa/sandbox/
+COPY masa/sandbox/egress.py /app/masa/sandbox/
+COPY proxy_runner.py /app/proxy_runner.py
+
+RUN chmod 755 /app/proxy_runner.py /app/masa/sandbox/egress.py
+
+USER 10002:10002
+WORKDIR /app
+EXPOSE 8080
+
+ENTRYPOINT ["python3", "/app/proxy_runner.py"]

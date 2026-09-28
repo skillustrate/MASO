@@ -4,10 +4,12 @@ Modular orchestration engine implementing the Super-Engage-Signoff pattern.
 """
 
 import asyncio
+import fcntl
 import json
 import logging
 import os
 import re
+import shutil
 import socket
 import subprocess
 import sys
@@ -22,6 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from masa.broker import TaskBroker
 from masa.crypto import ConfigCrypto, SensitiveDataFilter
 from masa.evals import AuditorAssertionEngine, ContentSanitizer
+from masa.sandbox import SandboxConfig, SandboxManager
 
 logger = logging.getLogger("MASAOrchestrator")
 logger.setLevel(logging.INFO)
@@ -328,7 +331,7 @@ class MultiAgentFramework:
     Super-Engage-Signoff workflow pattern.
     """
 
-    def __init__(self, root_dir: str = "."):
+    def __init__(self, root_dir: str = ".", sandbox_config: Optional[SandboxConfig] = None):
         self.root_dir = os.path.abspath(root_dir)
         self.skills_dir = os.path.join(self.root_dir, "skills")
         self.mailboxes_dir = os.path.join(self.root_dir, "mailboxes")
@@ -343,6 +346,8 @@ class MultiAgentFramework:
         self.subscriptions = SubscriptionManager(self.root_dir)
         self.user_config = self._load_user_config()
         self.base_config = self._load_base_config()
+        self.sandbox_config = sandbox_config or SandboxConfig()
+        self.sandbox_manager = SandboxManager()
 
     def _user_config_path(self) -> str:
         try:
@@ -542,56 +547,116 @@ class MultiAgentFramework:
         input_data: Dict[str, Any],
         model_name: str,
         task_id: str = "default_task",
+        task_dir: Optional[str] = None,
+        run_id: str = "run-0",
     ) -> Dict[str, Any]:
-        input_json = json.dumps(input_data)
-        if len(input_json.encode("utf-8")) > 10 * 1024 * 1024:
+        # Pre-scrub input data as defense-in-depth per REVISED §10.1 (Task 2.2)
+        scrubbed_input = SensitiveDataFilter.scrub_data(input_data)
+
+        # Check payload size cap before dispatch
+        input_json_bytes = json.dumps(scrubbed_input).encode("utf-8")
+        if len(input_json_bytes) > self.sandbox_config.max_output_bytes:
             return {
                 "status": "FAILURE",
                 "task_id": task_id,
                 "data_table": "",
                 "metrics": {"rows_processed": 0, "error_count": 1},
-                "audit_trail": ["Payload exceeded 10MB limit."],
+                "audit_trail": ["Payload exceeded size limit."],
                 "errors": ["InputPayloadTooLarge"],
             }
 
-        skill_path = self.resolve_and_validate_skill(skill_identifier)
-        clean_env = self._sanitize_environment()
+        # Prepare ephemeral mailbox task directory
+        if not task_dir:
+            task_dir = os.path.join(self.mailboxes_dir, run_id, "tasks", task_id)
+        os.makedirs(task_dir, exist_ok=True)
+        try:
+            os.chmod(task_dir, 0o777)
+        except Exception:
+            pass
+
+        input_json_path = os.path.join(task_dir, "input.json")
+        output_json_path = os.path.join(task_dir, "output.json")
+
+        # Mailbox writer: input.json via atomic O_CREAT | O_EXCL with flock (Task 1.9)
+        mailbox_payload = {
+            "run_id": run_id,
+            "task_id": task_id,
+            "skill_name": skill_identifier,
+            "parameters": scrubbed_input,
+            "limits": {
+                "max_output_bytes": self.sandbox_config.max_output_bytes,
+                "timeout_seconds": self.sandbox_config.timeout_seconds,
+            },
+        }
+
+        # Clean stale input if re-executing
+        if os.path.exists(input_json_path):
+            try:
+                os.remove(input_json_path)
+            except Exception:
+                pass
+
+        flags = os.O_CREAT | os.O_WRONLY | os.O_EXCL
+        fd = os.open(input_json_path, flags, 0o666)
+        with open(fd, "w", encoding="utf-8") as f:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+            try:
+                json.dump(mailbox_payload, f, indent=2)
+                f.flush()
+            finally:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
+        # Dispatch via SandboxManager (Task 2.1)
+        res = await asyncio.to_thread(self.sandbox_manager.run, task_dir, self.sandbox_config)
+
+        if res.exit_code != 0:
+            error_text = res.error_message or res.stderr or f"Exited with code {res.exit_code}"
+            return {
+                "status": "FAILURE",
+                "task_id": task_id,
+                "data_table": "",
+                "metrics": {"rows_processed": 0, "error_count": 1},
+                "audit_trail": [f"Sandbox execution failed: {error_text}"],
+                "errors": [error_text],
+            }
+
+        # Task 2.3: Structural validation - check output existence and size bounds
+        if not os.path.exists(output_json_path):
+            return {
+                "status": "FAILURE",
+                "task_id": task_id,
+                "data_table": "",
+                "metrics": {"rows_processed": 0, "error_count": 1},
+                "audit_trail": ["output.json not found after container execution."],
+                "errors": ["MissingOutputFile"],
+            }
+
+        out_size = os.path.getsize(output_json_path)
+        if out_size > self.sandbox_config.max_output_bytes:
+            return {
+                "status": "FAILURE",
+                "task_id": task_id,
+                "data_table": "",
+                "metrics": {"rows_processed": 0, "error_count": 1},
+                "audit_trail": [f"output.json size ({out_size} bytes) exceeds cap."],
+                "errors": ["OutputPayloadTooLarge"],
+            }
 
         try:
-            cmd = [sys.executable, skill_path, "--task_id", task_id]
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=clean_env,
-                cwd=self.root_dir,
-            )
-            stdout, stderr = await proc.communicate(input=input_json.encode("utf-8"))
-            out_str = stdout.decode("utf-8").strip()
-            if proc.returncode != 0:
-                try:
-                    return json.loads(out_str)
-                except Exception:
-                    return {
-                        "status": "FAILURE",
-                        "task_id": task_id,
-                        "data_table": "",
-                        "metrics": {"rows_processed": 0, "error_count": 1},
-                        "audit_trail": ["Subprocess returned non-zero code."],
-                        "errors": [
-                            stderr.decode("utf-8").strip()
-                            or f"Exited with code {proc.returncode}"
-                        ],
-                    }
-            return json.loads(out_str)
+            with open(output_json_path, "r", encoding="utf-8") as f:
+                envelope = json.load(f)
+
+            result_data = envelope.get("result", envelope)
+            if not isinstance(result_data, dict):
+                result_data = envelope
+            return result_data
         except Exception as e:
             return {
                 "status": "FAILURE",
                 "task_id": task_id,
                 "data_table": "",
                 "metrics": {"rows_processed": 0, "error_count": 1},
-                "audit_trail": [f"Execution failed: {e}"],
+                "audit_trail": [f"Failed to parse output.json: {e}"],
                 "errors": [str(e)],
             }
 
@@ -653,12 +718,29 @@ class MultiAgentFramework:
             task_id = task["task_id"]
             task_dir = os.path.join(run_mailbox_dir, "tasks", task_id)
             os.makedirs(task_dir, exist_ok=True)
-            skill_output = await self.dispatch_skill(
-                task["skill"], task["input_data"], task["model"], task_id
-            )
+            run_id = os.path.basename(run_mailbox_dir)
+            try:
+                skill_output = await self.dispatch_skill(
+                    skill_identifier=task["skill"],
+                    input_data=task["input_data"],
+                    model_name=task["model"],
+                    task_id=task_id,
+                    task_dir=task_dir,
+                    run_id=run_id,
+                )
+            except TypeError:
+                # Backward-compatibility fallback for mocks accepting only 4 positional parameters
+                skill_output = await self.dispatch_skill(
+                    task["skill"],
+                    task["input_data"],
+                    task["model"],
+                    task_id,
+                )
             out_file = os.path.join(task_dir, "output.json")
-            with open(out_file, "w", encoding="utf-8") as f:
-                json.dump(skill_output, f, indent=2)
+            if not os.path.exists(out_file):
+                with open(out_file, "w", encoding="utf-8") as f:
+                    json.dump(skill_output, f, indent=2)
+
             return {
                 "task_id": task_id,
                 "model": task["model"],
@@ -746,8 +828,20 @@ class MultiAgentFramework:
         engage_override: Optional[List[str]] = None,
         input_file: Optional[str] = None,
         num_agents: Optional[int] = None,
+        sandbox_mode: str = "auto",
+        sandbox_memory: str = "512m",
+        sandbox_timeout: int = 120,
+        allow_network: bool = False,
+        i_understand_the_risks: bool = False,
+        purge_ephemeral: bool = False,
     ) -> Dict[str, Any]:
         self.initialize_environment()
+        self.sandbox_config.runtime = sandbox_mode
+        self.sandbox_config.memory_limit = sandbox_memory
+        self.sandbox_config.timeout_seconds = sandbox_timeout
+        self.sandbox_config.allow_network = allow_network
+        self.sandbox_config.i_understand_the_risks = i_understand_the_risks
+
         run_id = f"run_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
         run_mailbox_dir = os.path.join(self.mailboxes_dir, run_id)
         os.makedirs(run_mailbox_dir, exist_ok=True)
@@ -828,6 +922,12 @@ class MultiAgentFramework:
 
         passed = audit_report.get("passed", False)
         verdict = "PASS" if passed else "FAIL"
+
+        # Ephemeral task directory purging post-signoff per REVISED §10.2 / Task 2.4
+        if purge_ephemeral:
+            tasks_dir = os.path.join(run_mailbox_dir, "tasks")
+            if os.path.exists(tasks_dir):
+                shutil.rmtree(tasks_dir, ignore_errors=True)
 
         return {
             "run_id": run_id,

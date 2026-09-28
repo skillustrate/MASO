@@ -1,0 +1,29 @@
+# Hardened OCI Skill Worker for MASO (v1.1.0)
+FROM python:3.13-slim-bookworm@sha256:2325bb286ec344af3e5898cc224b5844e2707ac6e26b1632516fd3edc84a5e26
+
+# Enforce secure environment defaults
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH="/usr/local/bin:$PATH"
+
+# Create unprivileged runtime user (UID 10001:10001) with nologin shell
+RUN groupadd -g 10001 masouser && \
+    useradd -u 10001 -g 10001 -d /nonexistent -s /usr/sbin/nologin masouser
+
+# Set up directory layout
+RUN mkdir -p /opt/skills /workspace /tmp && \
+    chown -R 10001:10001 /workspace /tmp && \
+    chmod 1777 /tmp
+
+# Copy runner script and in-image skill registry
+COPY runner.py /opt/runner.py
+COPY skills /opt/skills
+
+RUN chmod 755 /opt/runner.py && \
+    chmod -R 755 /opt/skills
+
+# Execute under unprivileged UID
+USER 10001:10001
+WORKDIR /workspace
+
+ENTRYPOINT ["python3", "/opt/runner.py"]

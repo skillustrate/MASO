@@ -1,0 +1,9 @@
+{
+  "skill_name": "data_refinement",
+  "version": "1.0.0",
+  "entrypoint": "main.py:execute_skill",
+  "network_required": false,
+  "egress_allowlist": [],
+  "max_output_bytes": 10485760,
+  "description": "Refines raw JSON objects into structured Markdown tables with schema validation"
+}

@@ -39,6 +39,7 @@ pylint-report.txt
 safety-report.txt
 bandit-report.json
 dependency-security.json
+eval_benchmark_report.json
 
 # Type Checking & Linters
 .mypy_cache/
@@ -82,4 +83,13 @@ Thumbs.db
 *.swp
 *.swo
 *~
-sandbox_design.md
+sandboxplan.md
+recom.md
+environment.md
+observation.md
+mailboxes/
+audit/
+observation.md
+*.md
+!README.md
+!commands.md
