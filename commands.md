@@ -49,7 +49,7 @@ maso run "<objective>" [options]
 
 #### Sandbox & Isolation Flags
 * `--sandbox {auto,podman,docker,local}`: Container execution engine (default: `auto`).
-  * `auto`: Probes Podman $\rightarrow$ Docker $\rightarrow$ **Fails Closed** if neither is found.
+  * `auto`: Probes Podman $\rightarrow$ Docker $\rightarrow$ **Fails Closed** if neither is found (prompts user to run `maso setup-podman`).
   * `podman`: Forces rootless Podman execution (daemonless, no root).
   * `docker`: Forces Docker container execution.
   * `local`: Unconfined local process execution (requires explicit risk acknowledgment).
@@ -134,21 +134,28 @@ Formatted JSON listing registered skill names, entrypoints, schemas, required pa
 ## 4. Setup & Provider Configuration
 
 ### `maso setup`
-Configures default persistent model routing for the multi-agent roles.
+Configures default persistent model routing for the multi-agent roles, or launches the guided Podman installer.
 
 #### Syntax
 ```bash
-maso setup [--super <model>] [--signoff <model>] [--engage <models>]
+maso setup [--super <model>] [--signoff <model>] [--engage <models>] [--podman] [--yes] [--skip-images]
 ```
 
 #### Flags
 * `--super <model>`: Default model for the Super Agent.
 * `--signoff <model>`: Default model for the Signoff Agent.
 * `--engage <model1,model2...>`: Comma-separated list of default models for Engage Agents.
+* `--podman`: Launch guided multi-OS setup for rootless Podman containment and sandbox image provisioning.
+* `--yes`, `-y`: Auto-confirm installation and image build prompts without interactive confirmation.
+* `--skip-images`: Skip automated building of sandbox container images.
 
-#### Example
+#### Examples
 ```bash
+# Configure default agent model routing
 maso setup --super gemini-1.5-pro --signoff claude-3-5-sonnet --engage gpt-4o,claude-3-5-haiku
+
+# Launch guided Podman setup via setup alias
+maso setup --podman -y
 ```
 
 ---
@@ -267,5 +274,6 @@ maso trust ~/projects/my-target-folder
 | `maso list-skills` | Skill Registry Viewer | `maso list-skills` |
 | `maso login` | Keyring Credential Vault | `maso login claude` |
 | `maso trust` | Directory Whitelisting | `maso trust ~/projects/analytics` |
-| `maso setup` | Model Preference Configuration | `maso setup --super gemini-1.5-pro` |
+| `maso setup` | Model Preference & Sandbox Setup | `maso setup --super gemini-1.5-pro` |
+| `maso setup-podman` | Multi-OS Guided Podman Installer | `maso setup-podman -y` |
 | `maso setup-local` | Local LLM Integration | `maso setup-local --port 1234` |
