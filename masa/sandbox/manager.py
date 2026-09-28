@@ -60,8 +60,8 @@ class SandboxManager:
                     "No container runtime (Podman or Docker) was detected on the host.\n"
                     "MASO refuses to execute untrusted specialist skills unconfined.\n\n"
                     "Remediation:\n"
-                    "  1. Install Podman: sudo apt install podman (recommended rootless daemonless)\n"
-                    "  2. Install Docker: sudo apt install docker.io\n"
+                    "  1. Guided Setup: Run 'maso setup-podman' for automated OS detection, Podman installation, and container image builds.\n"
+                    "  2. Manual Install: Install Podman via your package manager (e.g., sudo apt install podman)\n"
                     "  3. Explicit Override: pass '--sandbox local --i-understand-the-risks' to run locally with best-effort bounds."
                 )
             target_runtime = detected

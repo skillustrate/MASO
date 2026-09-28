@@ -176,6 +176,40 @@ maso setup-local --host localhost --port 11434 --name "Ollama Local"
 
 ---
 
+### `maso setup-podman`
+Guided, cross-platform installer and verifier for rootless Podman containment. Detects the host operating system and distribution, generates the native package manager commands, guides installation, initializes user namespaces, and builds the MASO sandbox container images.
+
+#### Syntax
+```bash
+maso setup-podman [--yes] [--skip-images]
+# or
+maso setup --podman [--yes] [--skip-images]
+```
+
+#### Flags
+* `--yes`, `-y`: Auto-confirms installation and build prompts without requiring interactive inputs.
+* `--skip-images`: Skips automated building of `maso-skill-worker:v1.1` and `maso-egress-proxy:v1.1` container images.
+
+#### Supported Platforms
+* **Debian / Ubuntu / Mint / Pop!_OS**: `sudo apt-get update && sudo apt-get install -y podman`
+* **Fedora / RHEL / CentOS / Rocky**: `sudo dnf install -y podman`
+* **Arch Linux / Manjaro**: `sudo pacman -S --noconfirm podman`
+* **openSUSE (Leap / Tumbleweed)**: `sudo zypper install -y podman`
+* **Alpine Linux**: `sudo apk add podman`
+* **macOS**: `brew install podman` followed by `podman machine init && podman machine start`
+* **Windows**: Native guidance via WSL2 (recommended) or `winget install RedHat.Podman`
+
+#### Example
+```bash
+# Interactive guided setup
+maso setup-podman
+
+# Non-interactive automated setup (e.g., CI/CD)
+maso setup-podman -y
+```
+
+---
+
 ## 5. Authentication & Workspace Trust
 
 ### `maso login`

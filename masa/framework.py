@@ -250,10 +250,24 @@ def main():
     )
 
     # setup
-    setup_p = subparsers.add_parser("setup", help="Configure user model preferences")
+    setup_p = subparsers.add_parser("setup", help="Configure user model preferences or sandbox")
     setup_p.add_argument("--super", help="Super Agent model")
     setup_p.add_argument("--signoff", help="Signoff Agent model")
     setup_p.add_argument("--engage", help="Comma-separated list of Engage models")
+    setup_p.add_argument("--podman", action="store_true", help="Launch guided setup for rootless Podman")
+    setup_p.add_argument("--yes", "-y", action="store_true", help="Auto-confirm installation prompts")
+    setup_p.add_argument("--skip-images", action="store_true", help="Skip building sandbox images")
+
+    # setup-podman
+    setup_podman_p = subparsers.add_parser(
+        "setup-podman", help="Guided setup of rootless Podman across common operating systems"
+    )
+    setup_podman_p.add_argument(
+        "--yes", "-y", action="store_true", help="Auto-confirm installation prompts without interactive confirmation"
+    )
+    setup_podman_p.add_argument(
+        "--skip-images", action="store_true", help="Skip building MASO sandbox container images"
+    )
 
     # setup-local
     setup_local_p = subparsers.add_parser(
@@ -332,7 +346,13 @@ def main():
         handle_login(args.provider)
     elif args.command == "trust":
         handle_trust(args.path)
+    elif args.command == "setup-podman":
+        from masa.sandbox.setup_podman import run_guided_podman_setup
+        sys.exit(run_guided_podman_setup(auto_confirm=args.yes, skip_images=args.skip_images))
     elif args.command == "setup":
+        if getattr(args, "podman", False):
+            from masa.sandbox.setup_podman import run_guided_podman_setup
+            sys.exit(run_guided_podman_setup(auto_confirm=args.yes, skip_images=args.skip_images))
         handle_setup(args.super, args.signoff, args.engage)
     elif args.command == "setup-local":
         handle_setup_local(args.host, args.port, args.name)

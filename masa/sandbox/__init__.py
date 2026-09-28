@@ -29,6 +29,12 @@ from masa.sandbox.supply_chain import (
     sign_image_digest,
     verify_image_signature,
 )
+from masa.sandbox.setup_podman import (
+    build_sandbox_images,
+    detect_os_info,
+    get_install_plan,
+    run_guided_podman_setup,
+)
 
 __all__ = [
     "SandboxConfig",
@@ -55,4 +61,8 @@ __all__ = [
     "SupplyChainVerificationError",
     "UnsignedImageError",
     "VulnerabilityScanError",
+    "run_guided_podman_setup",
+    "detect_os_info",
+    "get_install_plan",
+    "build_sandbox_images",
 ]
