@@ -76,6 +76,7 @@ class AuditLogger:
         degraded_isolation: bool = False,
         egress_allowed: bool = False,
         seccomp_profile: str = "maso-seccomp-profile.json",
+        signature_verified: bool = False,
         operator: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
@@ -117,6 +118,7 @@ class AuditLogger:
                     "skill_name": skill_name,
                     "skill_version": skill_version,
                     "image_digest": image_digest,
+                    "signature_verified": signature_verified,
                     "input_sha256": input_sha256,
                     "output_sha256": output_sha256,
                     "exit_code": exit_code,

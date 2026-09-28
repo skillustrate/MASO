@@ -21,6 +21,9 @@ class SandboxConfig:
     seccomp_profile: Optional[str] = None
     i_understand_the_risks: bool = False
     extra_env: Dict[str, str] = field(default_factory=dict)
+    require_signature: bool = False
+    signature_file: Optional[str] = None
+    public_key_path: Optional[str] = None
 
 
 @dataclass

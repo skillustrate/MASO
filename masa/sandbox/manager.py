@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional
 
 from masa.sandbox.audit import AuditLogger
 from masa.sandbox.base import ExecutionResult, SandboxConfig, SandboxDriver
+from masa.sandbox.docker import DockerSandboxDriver
 from masa.sandbox.local_process import LocalProcessSandboxDriver
 from masa.sandbox.podman import PodmanSandboxDriver
 
@@ -19,6 +20,7 @@ class SandboxManager:
     def __init__(self, audit_logger: Optional[AuditLogger] = None):
         self.audit_logger = audit_logger or AuditLogger()
         self.podman_driver = PodmanSandboxDriver(self.audit_logger)
+        self.docker_driver = DockerSandboxDriver(self.audit_logger)
         self.local_driver = LocalProcessSandboxDriver(self.audit_logger)
 
     def detect_available_runtime(self) -> str:
@@ -70,8 +72,9 @@ class SandboxManager:
             return self.podman_driver
 
         if target_runtime == "docker":
-            # For Sprint 1 we focus on Podman; Docker driver will be wired in Sprint 3
-            raise NotImplementedError("Docker driver is scheduled for Sprint 3. Please use Podman.")
+            if not self.docker_driver.is_available():
+                raise RuntimeError("Docker runtime requested but 'docker' binary was not found or daemon is not responding.")
+            return self.docker_driver
 
         if target_runtime == "local":
             if not config.i_understand_the_risks:
@@ -92,8 +95,15 @@ class SandboxManager:
     def health_check(self) -> Dict[str, Any]:
         """Audit status of sandbox runtime, worker image, and audit log."""
         runtime = self.detect_available_runtime()
-        rootless = self.is_podman_rootless() if runtime == "podman" else False
-        image_digest = self.podman_driver.get_image_digest("maso-skill-worker:v1.1")
+        rootless = False
+        image_digest = "unknown"
+        if runtime == "podman":
+            rootless = self.is_podman_rootless()
+            image_digest = self.podman_driver.get_image_digest("maso-skill-worker:v1.1")
+        elif runtime == "docker":
+            rootless = self.docker_driver.is_rootless()
+            image_digest = self.docker_driver.get_image_digest("maso-skill-worker:v1.1")
+
         is_valid_chain, errors = self.audit_logger.verify_integrity()
         recent_entries = self.audit_logger.get_recent_entries(limit=5)
 
