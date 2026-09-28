@@ -189,6 +189,11 @@ def handle_run(
             engage_override=engage_list,
             input_file=input_file,
             num_agents=num_agents,
+            sandbox_mode=sandbox_mode,
+            sandbox_memory=sandbox_memory,
+            sandbox_timeout=sandbox_timeout,
+            allow_network=allow_network,
+            i_understand_the_risks=i_understand_the_risks,
         )
     )
     print(json.dumps(res, indent=2))

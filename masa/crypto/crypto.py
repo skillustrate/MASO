@@ -73,6 +73,10 @@ class SensitiveDataFilter(logging.Filter):
             ),
             r"[REDACTED JWT]",
         ),
+        (
+            re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+            r"[REDACTED AWS KEY]",
+        ),
     ]
 
     def __init__(self, name: str = "SensitiveDataFilter"):
@@ -83,6 +87,36 @@ class SensitiveDataFilter(logging.Filter):
             for pattern, replacement in self.PATTERNS:
                 record.msg = pattern.sub(replacement, record.msg)
         return True
+
+    @classmethod
+    def scrub_text(cls, text: str) -> str:
+        """Sanitize sensitive patterns from a text string (defense-in-depth)."""
+        if not isinstance(text, str):
+            return text
+        for pattern, replacement in cls.PATTERNS:
+            text = pattern.sub(replacement, text)
+        return text
+
+    @classmethod
+    def scrub_data(cls, data: Any) -> Any:
+        """Recursively scrub sensitive keys/tokens from a dictionary, list, or primitive."""
+        SENSITIVE_KEY_NAMES = {
+            "api_key", "apikey", "secret", "password", "token", "private_key",
+            "auth_token", "access_key", "credential"
+        }
+        if isinstance(data, str):
+            return cls.scrub_text(data)
+        elif isinstance(data, dict):
+            scrubbed = {}
+            for k, v in data.items():
+                if any(sk in str(k).lower() for sk in SENSITIVE_KEY_NAMES):
+                    scrubbed[k] = "[REDACTED]"
+                else:
+                    scrubbed[k] = cls.scrub_data(v)
+            return scrubbed
+        elif isinstance(data, list):
+            return [cls.scrub_data(item) for item in data]
+        return data
 
 
 class ConfigCrypto:

@@ -1,5 +1,6 @@
 """
 Data Refinement skill entrypoint for MASO worker container.
+Adheres to strict schema required by AuditorAssertionEngine.
 """
 
 from typing import Any, Dict, List
@@ -11,16 +12,22 @@ def execute_skill(task_context: Dict[str, Any], parameters: Dict[str, Any]) -> D
 
     if raw_data is None:
         return {
-            "status": "ERROR",
-            "errors": ["Missing 'raw_data' in input parameters"],
-            "task_id": task_id
+            "status": "FAILURE",
+            "task_id": task_id,
+            "data_table": "",
+            "metrics": {"rows_processed": 0, "error_count": 1},
+            "audit_trail": ["Validation failure: missing 'raw_data'"],
+            "errors": ["Missing 'raw_data' in input parameters"]
         }
 
     if not isinstance(raw_data, list):
         return {
-            "status": "ERROR",
-            "errors": ["'raw_data' must be a list of objects"],
-            "task_id": task_id
+            "status": "FAILURE",
+            "task_id": task_id,
+            "data_table": "",
+            "metrics": {"rows_processed": 0, "error_count": 1},
+            "audit_trail": ["Validation failure: 'raw_data' is not a list"],
+            "errors": ["'raw_data' must be a list of objects"]
         }
 
     if len(raw_data) == 0:
@@ -28,7 +35,9 @@ def execute_skill(task_context: Dict[str, Any], parameters: Dict[str, Any]) -> D
             "status": "SUCCESS",
             "task_id": task_id,
             "data_table": "| Message |\n| --- |\n| No data provided |",
-            "rows_processed": 0
+            "metrics": {"rows_processed": 0, "error_count": 0},
+            "audit_trail": ["Processed empty dataset."],
+            "errors": []
         }
 
     all_keys: List[str] = []
@@ -53,6 +62,7 @@ def execute_skill(task_context: Dict[str, Any], parameters: Dict[str, Any]) -> D
         "status": "SUCCESS",
         "task_id": task_id,
         "data_table": data_table,
-        "rows_processed": len(rows),
-        "columns": all_keys
+        "metrics": {"rows_processed": len(rows), "error_count": 0},
+        "audit_trail": [f"Processed {len(rows)} records into Markdown table."],
+        "errors": []
     }

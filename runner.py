@@ -12,8 +12,9 @@ import sys
 import time
 from typing import Any, Dict
 
-SKILLS_DIR = "/opt/skills"
-WORKSPACE_DIR = "/workspace"
+WORKSPACE_DIR = os.environ.get("WORKSPACE", "/workspace")
+_default_skills = "/opt/skills" if os.path.exists("/opt/skills") else os.path.join(os.path.dirname(os.path.abspath(__file__)), "skills")
+SKILLS_DIR = os.environ.get("SKILLS_DIR", _default_skills)
 DEFAULT_MAX_OUTPUT_BYTES = 10 * 1024 * 1024  # 10 MiB
 
 

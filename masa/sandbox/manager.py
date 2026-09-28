@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional
 
 from masa.sandbox.audit import AuditLogger
 from masa.sandbox.base import ExecutionResult, SandboxConfig, SandboxDriver
+from masa.sandbox.local_process import LocalProcessSandboxDriver
 from masa.sandbox.podman import PodmanSandboxDriver
 
 
@@ -18,6 +19,7 @@ class SandboxManager:
     def __init__(self, audit_logger: Optional[AuditLogger] = None):
         self.audit_logger = audit_logger or AuditLogger()
         self.podman_driver = PodmanSandboxDriver(self.audit_logger)
+        self.local_driver = LocalProcessSandboxDriver(self.audit_logger)
 
     def detect_available_runtime(self) -> str:
         """Probe host for installed container runtimes in priority order."""
@@ -78,7 +80,7 @@ class SandboxManager:
                     "Local process fallback provides NO filesystem, network, or capability isolation.\n"
                     "To proceed, you must pass '--i-understand-the-risks'."
                 )
-            raise NotImplementedError("Local process fallback driver will be integrated in Sprint 2.")
+            return self.local_driver
 
         raise ValueError(f"Unknown sandbox runtime mode: '{target_runtime}'")
 
