@@ -39,6 +39,7 @@ pylint-report.txt
 safety-report.txt
 bandit-report.json
 dependency-security.json
+eval_benchmark_report.json
 
 # Type Checking & Linters
 .mypy_cache/
