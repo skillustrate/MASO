@@ -89,3 +89,7 @@ environment.md
 observation.md
 mailboxes/
 audit/
+observation.md
+*.md
+!README.md
+!commands.md
