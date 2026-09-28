@@ -1,0 +1,290 @@
+# MASA CI Pipeline - Automated Testing, Security Scanning, and Code Quality
+# Runs on every push to main/master branch and PRs
+
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    # Weekly security audit (Sunday at 2 AM UTC)
+    - cron: "0 2 * * 0"
+
+env:
+  PYTHON_VERSION: "3.11"
+  MASA_HOME_DIR: /tmp/masa-test-${{ github.run_number }}
+  MASA_KEY_DIR: ${{ env.MASA_HOME_DIR }}/keys
+
+jobs:
+  # =============================================================================
+  # Job 1: Test Suite Execution
+  # =============================================================================
+  test-suite:
+    name: Run Tests with Coverage
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+          cache-dependency-path: |
+            pyproject.toml
+            requirements.in
+            requirements.txt.lock
+
+      - name: Install Dependencies from Lockfile
+        run: |
+          echo "Installing dependencies from requirements.txt.lock..."
+          pip install --upgrade pip
+          pip install -r requirements.txt.lock
+          pip install pytest pytest-cov pytest-xdist
+          
+      - name: Run Tests with Coverage
+        run: |
+          echo "Running test suite..."
+          pytest tests/ \
+            -v \
+            --cov=masa \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --cov-report=html:coverage_report \
+            --junitxml=test-results.xml \
+            ${{ github.event_name == 'schedule' && '--maxfail=1' || '' }}
+        
+      - name: Upload Coverage Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ github.run_number }}
+          path: coverage_report
+
+      - name: Upload Test Results (JUnit)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ github.run_number }}
+          path: test-results.xml
+
+  # =============================================================================
+  # Job 2: Security Scanning
+  # =============================================================================
+  security-scan:
+    name: Security Analysis & Dependency Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Security Tools
+        run: |
+          pip install --upgrade pip
+          pip install safety bandit pylint mypy black flake8 isort
+      
+      - name: Check for Known Vulnerabilities (Safety)
+        run: |
+          safety check \
+            -r requirements.txt.lock \
+            --full-report > safety-report.txt || true
+          
+          if [ $? -ne 0 ]; then
+            echo "⚠️ Security vulnerabilities found. Review safety-report.txt"
+            cat safety-report.txt
+          else
+            echo "✅ No known vulnerabilities detected"
+          fi
+      
+      - name: Code Quality Analysis (Bandit)
+        run: |
+          bandit -r masa/ -ll -ii -f json > bandit-report.json
+
+      - name: Static Type Checking (mypy)
+        run: |
+          pip install mypy
+          mypy masa/ --ignore-missing-imports --warn-return-any
+
+      - name: Run Security Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports-${{ github.run_number }}
+          path: |
+            safety-report.txt
+            bandit-report.json
+
+  # =============================================================================
+  # Job 3: Code Formatting & Style Check
+  # =============================================================================
+  code-quality:
+    name: Code Style & Formatting
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Linting Tools
+        run: |
+          pip install --upgrade pip
+          pip install pylint black isort flake8 mypy
+      
+      - name: Check Black Formatting
+        run: |
+          black --check masa/ tests/ || {
+            echo "❌ Code formatting issues found. Run: black ./"
+            exit 1
+          }
+
+      - name: Check Isort Imports
+        run: |
+          pip install isort
+          isort --check-only --profile black masa/ tests/ || {
+            echo "❌ Import order issues found. Run: isort ."
+            exit 1
+          }
+
+      - name: Run Pylint
+        run: |
+          pylint --rcfile=pylint.rc masa/ tests/ 2>&1 | tee pylint-report.txt || true
+
+      - name: Upload Quality Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-quality-${{ github.run_number }}
+          path: |
+            pylint-report.txt
+            black --version
+            isort --version
+
+  # =============================================================================
+  # Job 4: Integration Test (E2E)
+  # =============================================================================
+  integration-test:
+    name: End-to-End Pipeline Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Create Temporary Workspace
+        run: |
+          mkdir -p ${{ env.MASA_HOME_DIR }}/tests/masa/core
+          mkdir -p ${{ env.MASA_HOME_DIR }}/tests/masa/skills/sample_skill
+          mkdir -p ${{ env.MASA_HOME_DIR }}/tests/masa/evals
+          mkdir -p ${{ env.MASA_HOME_DIR }}/tests/mailboxes
+
+      - name: Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt.lock
+
+      - name: Run E2E Tests
+        run: |
+          pytest tests/test_e2e.py \
+            -v \
+            --tb=short \
+            --maxfail=1 || {
+            echo "❌ E2E test failed. Check output above."
+            exit 1
+          }
+
+      - name: Upload E2E Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results-${{ github.run_number }}
+          path: mailboxes/
+
+  # =============================================================================
+  # Job 5: Build & Package Verification
+  # =============================================================================
+  build-package:
+    name: Build and Verify Package
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Build Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install build twine
+      
+      - name: Build Package
+        run: |
+          python -m build --sdist --wheel
+          
+      - name: Verify Package Contents
+        run: |
+          tar -tzf dist/*.tar.gz > sdist-contents.txt || true
+          unzip -l dist/*.whl > wheel-contents.txt || true
+
+      - name: Upload Distribution Packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: distribution-packages-${{ github.run_number }}
+          path: dist/
+
+  # =============================================================================
+  # Job 6: Dependency Audit (Weekly Only)
+  # =============================================================================
+  dependency-audit:
+    name: Comprehensive Dependency Audit (Weekly)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Dependency Scanning Tools
+        run: |
+          pip install safety bandit pip-audit
+      
+      - name: Run Safety Audit (CVE Database)
+        run: |
+          safety check \
+            --full-report \
+            --json > dependency-security.json
+
+      - name: Upload Security Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-dependency-audit
+          path: |
+            dependency-security.json

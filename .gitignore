@@ -1,0 +1,85 @@
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Python bytecode and cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution, packaging, and build artifacts
+build/
+dist/
+downloads/
+eggs/
+.eggs/
+*.egg-info/
+*.egg
+*.whl
+*.tar.gz
+sdist-contents.txt
+wheel-contents.txt
+
+# Testing and Coverage
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+coverage_report/
+htmlcov/
+test-results.xml
+.tox/
+
+# Security, Audit & Lint Reports (CI artifacts)
+pylint-report.txt
+safety-report.txt
+bandit-report.json
+dependency-security.json
+
+# Type Checking & Linters
+.mypy_cache/
+.ruff_cache/
+
+# Environment Variables, Secrets & Keys
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+config.key
+
+# Databases
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Runtime mailboxes and task artifacts
+mailboxes/run_*
+mailboxes/tasks/
+mailboxes/main_task.md
+mailboxes/skill_output.json
+
+# Scratch notes & planning artifacts
+design.md
+plan.md
+next-dev.md
+agent.md
+workflow.md
+subscription_architecture_proposal.md
+step_*.txt
+
+# OS & Editor artifacts
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+sandbox_design.md

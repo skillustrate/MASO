@@ -1,0 +1,24 @@
+{
+  "project_metadata": {
+    "name": "Multi-Agent Scaffolding Framework (MASA)",
+    "version": "2.0.0",
+    "description": "A dynamic task-decomposition orchestration environment."
+  },
+  "orchestration": {
+    "roles": {
+      "super": "gemini",
+      "signoff": "claude"
+    },
+    "engage_agent_pool": [
+      "gemini",
+      "claude",
+      "gpt-4o"
+    ],
+    "runtime_flags": {
+      "development_mode": true,
+      "verbose_logging": true,
+      "strict_schema_validation": true,
+      "allow_dynamic_agent_scaling": true
+    }
+  }
+}
