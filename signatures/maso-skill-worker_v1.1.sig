@@ -1,6 +1,6 @@
 {
-  "image_digest": "0e2ee3788e5ecab6f1f3e943438705a3f33c4da7899714f485e5d2a223cf33fc",
+  "image_digest": "3e2c44f3c99bb594349b8469083278deace487b6b822fbd79c0d9e581b1a822c",
   "algorithm": "HMAC-SHA256",
-  "signature": "bf8fedaeab1450a3b53292bb71f200821c7d56557dd8c6c36addb53d1ea5f9bf",
+  "signature": "fca5fa34266a4d6598903a47ef87c9107c135e6669b45de29ea4cbfa9b6eca0c",
   "format": "maso-attestation-v1"
 }

@@ -59,15 +59,44 @@ fi
 # 4. Make all helper scripts executable
 chmod +x "$REPO_DIR/scripts/"*.sh 2>/dev/null || true
 
-# 5. Build sandbox worker image if Podman or Docker is available
+# 5. Build sandbox worker and egress proxy images if Podman or Docker is available
+# Requirements:
+#   - Rootless Podman (recommended): sudo apt install podman
+#   - Docker Engine: sudo apt install docker.io (rootless mode supported)
 if command -v podman >/dev/null 2>&1; then
     echo "Building hardened worker image via Podman (rootless)..."
     podman build -t maso-skill-worker:v1.1 -f "$REPO_DIR/Containerfile.worker" "$REPO_DIR" >/dev/null 2>&1 || true
     podman tag localhost/maso-skill-worker:v1.1 maso-skill-worker:latest >/dev/null 2>&1 || true
+    echo "Building minimal egress proxy image via Podman..."
+    podman build -t maso-egress-proxy:v1.1 -f "$REPO_DIR/Containerfile.proxy" "$REPO_DIR" >/dev/null 2>&1 || true
+    # Generate cryptographic image digest attestation
+    python3 -c "
+from masa.sandbox.podman import PodmanSandboxDriver
+from masa.sandbox.supply_chain import sign_image_digest, get_default_sig_path
+import os
+p = PodmanSandboxDriver()
+d = p.get_image_digest('maso-skill-worker:v1.1')
+if d != 'unknown':
+    sign_image_digest(d, output_file=get_default_sig_path('maso-skill-worker:v1.1'))
+    sign_image_digest(d, output_file=os.path.join(os.getcwd(), 'signatures', 'maso-skill-worker.sig'))
+" 2>/dev/null || true
 elif command -v docker >/dev/null 2>&1; then
     echo "Building worker image via Docker..."
     docker build -t maso-skill-worker:v1.1 -f "$REPO_DIR/Containerfile.worker" "$REPO_DIR" >/dev/null 2>&1 || true
     docker tag maso-skill-worker:v1.1 maso-skill-worker:latest >/dev/null 2>&1 || true
+    echo "Building minimal egress proxy image via Docker..."
+    docker build -t maso-egress-proxy:v1.1 -f "$REPO_DIR/Containerfile.proxy" "$REPO_DIR" >/dev/null 2>&1 || true
+    # Generate cryptographic image digest attestation
+    python3 -c "
+from masa.sandbox.docker import DockerSandboxDriver
+from masa.sandbox.supply_chain import sign_image_digest, get_default_sig_path
+import os
+d_driver = DockerSandboxDriver()
+d = d_driver.get_image_digest('maso-skill-worker:v1.1')
+if d != 'unknown':
+    sign_image_digest(d, output_file=get_default_sig_path('maso-skill-worker:v1.1'))
+    sign_image_digest(d, output_file=os.path.join(os.getcwd(), 'signatures', 'maso-skill-worker.sig'))
+" 2>/dev/null || true
 fi
 
 # 6. Pre-approve folder trust

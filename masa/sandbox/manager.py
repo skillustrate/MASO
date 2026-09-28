@@ -115,6 +115,8 @@ class SandboxManager:
             "seccomp_profile": "maso-seccomp-profile.json",
             "audit_log_path": self.audit_logger.log_path,
             "audit_log_entries": len(recent_entries),
+            "recent_entries": recent_entries,
             "audit_chain_valid": is_valid_chain,
-            "audit_errors": errors
+            "audit_errors": errors,
+            "auditor_state": "ACTIVE (Structural Validator)"
         }

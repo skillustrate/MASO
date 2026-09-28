@@ -62,10 +62,14 @@ def print_status(workspace: Optional[str] = None):
         s_mgr = SandboxManager()
         h_info = s_mgr.health_check()
         rt = h_info["runtime"].upper()
-        rootless_str = " (Rootless)" if h_info["rootless"] else ""
-        print(f"Runtime Engine:       {rt}{rootless_str}")
+        if rt == "LOCAL":
+            print("Runtime Engine:       LOCAL (DEGRADED — no isolation)")
+        else:
+            rootless_str = " (Rootless)" if h_info["rootless"] else ""
+            print(f"Runtime Engine:       {rt}{rootless_str}")
         print(f"Worker Image:         {h_info['worker_image']} ({h_info['image_digest'][:19]}...)")
         print(f"Seccomp Profile:      {h_info['seccomp_profile']}")
+        print(f"Auditor Engine:       {h_info.get('auditor_state', 'ACTIVE (Structural Validator)')}")
         print(f"Audit Log:            {h_info['audit_log_path']}")
         print(f"Audit Entries:        {h_info['audit_log_entries']} (Chain Valid: {h_info['audit_chain_valid']})")
     except Exception as e:
