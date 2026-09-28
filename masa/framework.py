@@ -55,6 +55,23 @@ def print_status(workspace: Optional[str] = None):
         details_val = str(info.get("details", ""))
         print(f"{prov_name:<12} {status_val:<15} {details_val:<35}")
     print("======================================================================")
+    print(" Sandbox Runtime & Execution Boundary (v1.1.0)")
+    print("----------------------------------------------------------------------")
+    try:
+        from masa.sandbox.manager import SandboxManager
+        s_mgr = SandboxManager()
+        h_info = s_mgr.health_check()
+        rt = h_info["runtime"].upper()
+        rootless_str = " (Rootless)" if h_info["rootless"] else ""
+        print(f"Runtime Engine:       {rt}{rootless_str}")
+        print(f"Worker Image:         {h_info['worker_image']} ({h_info['image_digest'][:19]}...)")
+        print(f"Seccomp Profile:      {h_info['seccomp_profile']}")
+        print(f"Audit Log:            {h_info['audit_log_path']}")
+        print(f"Audit Entries:        {h_info['audit_log_entries']} (Chain Valid: {h_info['audit_chain_valid']})")
+    except Exception as e:
+        print(f"Sandbox Engine:       Unavailable ({str(e)})")
+    print("======================================================================")
+
 
 
 def handle_login(provider: str, workspace: Optional[str] = None):
@@ -152,6 +169,11 @@ def handle_run(
     super_override: Optional[str] = None,
     signoff_override: Optional[str] = None,
     engage_override: Optional[str] = None,
+    sandbox_mode: str = "auto",
+    sandbox_memory: str = "512m",
+    sandbox_timeout: int = 120,
+    allow_network: bool = False,
+    i_understand_the_risks: bool = False,
 ):
     fw = MultiAgentFramework(workspace or os.getcwd())
     engage_list = (
@@ -251,6 +273,33 @@ def main():
     run_p.add_argument(
         "--engage", help="Engage Agent models override (comma-separated)"
     )
+    run_p.add_argument(
+        "--sandbox",
+        choices=["auto", "podman", "docker", "local"],
+        default="auto",
+        help="Sandbox execution mode (default: auto)",
+    )
+    run_p.add_argument(
+        "--sandbox-memory",
+        default="512m",
+        help="Sandbox memory limit (default: 512m)",
+    )
+    run_p.add_argument(
+        "--sandbox-timeout",
+        type=int,
+        default=120,
+        help="Sandbox execution timeout in seconds (default: 120)",
+    )
+    run_p.add_argument(
+        "--allow-network",
+        action="store_true",
+        help="Allow network access inside sandbox (default: disabled)",
+    )
+    run_p.add_argument(
+        "--i-understand-the-risks",
+        action="store_true",
+        help="Acknowledge unconfined execution risk when using '--sandbox local'",
+    )
 
     # audit
     audit_p = subparsers.add_parser(
@@ -287,6 +336,11 @@ def main():
             super_override=args.super,
             signoff_override=args.signoff,
             engage_override=args.engage,
+            sandbox_mode=args.sandbox,
+            sandbox_memory=args.sandbox_memory,
+            sandbox_timeout=args.sandbox_timeout,
+            allow_network=args.allow_network,
+            i_understand_the_risks=args.i_understand_the_risks,
         )
     elif args.command == "audit":
         handle_audit(args.file_path, master=args.master)
